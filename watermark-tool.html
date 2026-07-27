@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>写真透かしツール | N Lab Works</title>
+<style>
+  :root{
+    --bg:#0c0b09;
+    --panel:#16140f;
+    --panel-2:#1e1b14;
+    --gold:#c8a86b;
+    --gold-soft:#8f7a52;
+    --text:#f4f1ea;
+    --muted:#9b9488;
+    --border:#2c2820;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;
+    min-height:100vh;
+    padding:32px 20px 80px;
+  }
+  .wrap{max-width:1000px;margin:0 auto;}
+  header{margin-bottom:28px;}
+  h1{
+    font-size:22px;
+    font-weight:700;
+    letter-spacing:.02em;
+    margin:0 0 6px;
+    display:flex;align-items:center;gap:10px;
+  }
+  .mark{
+    width:22px;height:22px;flex:none;
+  }
+  header p{color:var(--muted);font-size:13.5px;margin:0;line-height:1.6;}
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:22px;
+    margin-bottom:20px;
+  }
+  .panel h2{
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--gold);
+    margin:0 0 14px;
+    font-weight:600;
+  }
+
+  .drop{
+    border:1.5px dashed var(--gold-soft);
+    border-radius:12px;
+    padding:36px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    background:var(--panel-2);
+  }
+  .drop.drag{border-color:var(--gold);background:#241f16;}
+  .drop p{margin:0;color:var(--muted);font-size:13.5px;}
+  .drop strong{color:var(--text);font-size:15px;display:block;margin-bottom:6px;}
+  input[type=file]{display:none;}
+
+  .controls{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:18px;
+    margin-top:20px;
+  }
+  @media(max-width:640px){.controls{grid-template-columns:1fr;}}
+
+  .field label{
+    display:block;
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:8px;
+    letter-spacing:.02em;
+  }
+  .presets{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+  .preset-btn{
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:6px 14px;
+    border-radius:20px;
+    font-size:12.5px;
+    cursor:pointer;
+    transition:border-color .15s;
+  }
+  .preset-btn:hover{border-color:var(--gold);}
+  .preset-btn.active{border-color:var(--gold);color:var(--gold);}
+
+  input[type=text]{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:10px 12px;
+    border-radius:8px;
+    font-size:14px;
+  }
+  input[type=text]:focus{outline:none;border-color:var(--gold);}
+
+  input[type=range]{
+    width:100%;
+    accent-color:var(--gold);
+  }
+  .range-val{color:var(--gold);font-size:12.5px;margin-left:6px;}
+
+  .queue{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+    gap:16px;
+    margin-top:20px;
+  }
+  .card{
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  .card canvas{width:100%;display:block;background:#000;}
+  .card-foot{
+    padding:10px 12px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+  }
+  .card-foot span{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .dl-btn{
+    flex:none;
+    background:none;
+    border:1px solid var(--gold-soft);
+    color:var(--gold);
+    padding:5px 10px;
+    border-radius:6px;
+    font-size:11.5px;
+    cursor:pointer;
+  }
+  .dl-btn:hover{background:var(--gold);color:#0c0b09;}
+
+  .actions{
+    display:flex;
+    gap:10px;
+    margin-top:22px;
+    flex-wrap:wrap;
+  }
+  .btn{
+    padding:11px 20px;
+    border-radius:8px;
+    font-size:13.5px;
+    font-weight:600;
+    cursor:pointer;
+    border:none;
+  }
+  .btn-primary{background:var(--gold);color:#0c0b09;}
+  .btn-primary:hover{background:#d8bb84;}
+  .btn-primary:disabled{background:#4a4436;color:#8a8477;cursor:not-allowed;}
+  .btn-ghost{background:none;border:1px solid var(--border);color:var(--muted);}
+  .btn-ghost:hover{border-color:var(--gold-soft);color:var(--text);}
+
+  .empty{
+    text-align:center;
+    color:var(--muted);
+    font-size:13px;
+    padding:20px 0 4px;
+  }
+  .note{
+    font-size:11.5px;
+    color:var(--muted);
+    margin-top:14px;
+    line-height:1.7;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>
+      <svg class="mark" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+        <g transform="translate(60,60)">
+          <path d="M 13.0,-47.0 L 47.0,-13.0 Q 60,0 47.0,13.0 L 13.0,47.0 Q 0,60 -13.0,47.0 L -47.0,13.0 Q -60,0 -47.0,-13.0 L -13.0,-47.0 Q 0,-60 13.0,-47.0 Z" fill="#c8a86b"/>
+          <path d="M -20.8,23.1 L -20.8,-23.1 L 20.8,23.1 L 20.8,-23.1" fill="none" stroke="#0c0b09" stroke-width="10.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </svg>
+      写真透かしツール
+    </h1>
+    <p>Mercari・PayPayフリマ出品用。画像はブラウザ内だけで処理され、どこにもアップロードされません。</p>
+  </header>
+
+  <div class="panel">
+    <h2>1. 写真を選ぶ</h2>
+    <div class="drop" id="drop">
+      <strong>クリックして選択、またはドラッグ＆ドロップ</strong>
+      <p>複数枚まとめて選択できます（JPEG / PNG）</p>
+      <input type="file" id="fileInput" accept="image/*" multiple>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>2. モードを選ぶ</h2>
+    <div class="presets" id="modeButtons">
+      <button class="preset-btn active" data-mode="mercari">Mercari / PayPayフリマ（全面・目立つ文字）</button>
+      <button class="preset-btn" data-mode="etsy">Etsy（隅に小さいロゴ・控えめ）</button>
+    </div>
+    <p class="note" id="modeDesc" style="margin-top:12px;">Mercari向け：写真全体に文字を斜めに配置し、盗用しにくくします。</p>
+  </div>
+
+  <div class="panel" id="textPanel">
+    <h2>3. 透かしの設定</h2>
+    <div class="field" id="textField">
+      <label>透かし文字</label>
+      <div class="presets">
+        <button class="preset-btn active" data-text="Zuuma">Zuuma（Mercari用）</button>
+        <button class="preset-btn" data-text="N Lab Works">N Lab Works</button>
+      </div>
+      <input type="text" id="textInput" value="Zuuma" maxlength="30">
+    </div>
+    <div class="controls">
+      <div class="field">
+        <label>濃さ <span class="range-val" id="opacityVal">15%</span></label>
+        <input type="range" id="opacity" min="5" max="45" value="15">
+      </div>
+      <div class="field" id="sizeField">
+        <label>文字の大きさ <span class="range-val" id="sizeVal">標準</span></label>
+        <input type="range" id="fontScale" min="60" max="140" value="100">
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="queuePanel" style="display:none;">
+    <h2>3. プレビュー・ダウンロード</h2>
+    <div class="queue" id="queue"></div>
+    <div class="actions">
+      <button class="btn btn-primary" id="downloadAll">すべてダウンロード</button>
+      <button class="btn btn-ghost" id="clearAll">クリア</button>
+    </div>
+    <p class="note">「すべてダウンロード」は1枚ずつ順番に保存されます。ブラウザによっては「複数ファイルのダウンロードを許可しますか」と聞かれることがあるので、その場合は許可してください。</p>
+  </div>
+
+  <div class="empty" id="emptyMsg">写真を追加すると、ここにプレビューが表示されます。</div>
+</div>
+
+<script>
+const state = { items: [], mode: 'mercari' };
+const modeButtons = document.querySelectorAll('#modeButtons .preset-btn');
+const modeDesc = document.getElementById('modeDesc');
+const textField = document.getElementById('textField');
+const sizeField = document.getElementById('sizeField');
+
+const MODE_INFO = {
+  mercari: 'Mercari向け：写真全体に文字を斜めに配置し、盗用しにくくします。',
+  etsy: 'Etsy向け：右下に小さくロゴを入れるだけの控えめな透かしです。購入意欲を下げにくい濃さにしています。'
+};
+
+modeButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    modeButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.mode = btn.dataset.mode;
+    modeDesc.textContent = MODE_INFO[state.mode];
+    const isEtsy = state.mode === 'etsy';
+    textField.style.display = isEtsy ? 'none' : 'block';
+    sizeField.style.display = isEtsy ? 'none' : 'block';
+    opacityInput.min = isEtsy ? 15 : 5;
+    opacityInput.max = isEtsy ? 60 : 45;
+    opacityInput.value = isEtsy ? 30 : 15;
+    opacityVal.textContent = opacityInput.value + '%';
+    renderAll();
+  });
+});
+
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('fileInput');
+const queuePanel = document.getElementById('queuePanel');
+const queueEl = document.getElementById('queue');
+const emptyMsg = document.getElementById('emptyMsg');
+const textInput = document.getElementById('textInput');
+const opacityInput = document.getElementById('opacity');
+const opacityVal = document.getElementById('opacityVal');
+const fontScaleInput = document.getElementById('fontScale');
+const sizeVal = document.getElementById('sizeVal');
+const presetBtns = document.querySelectorAll('.preset-btn');
+
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+drop.addEventListener('drop', e => {
+  e.preventDefault();
+  drop.classList.remove('drag');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+presetBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    presetBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    textInput.value = btn.dataset.text;
+    renderAll();
+  });
+});
+textInput.addEventListener('input', () => {
+  presetBtns.forEach(b => b.classList.toggle('active', b.dataset.text === textInput.value));
+  renderAll();
+});
+opacityInput.addEventListener('input', () => {
+  opacityVal.textContent = opacityInput.value + '%';
+  renderAll();
+});
+fontScaleInput.addEventListener('input', () => {
+  const v = fontScaleInput.value;
+  sizeVal.textContent = v < 90 ? '小さめ' : v > 110 ? '大きめ' : '標準';
+  renderAll();
+});
+
+function handleFiles(fileList) {
+  [...fileList].forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        state.items.push({ id, name: file.name, img });
+        buildCard(id);
+        renderOne(id);
+        updateVisibility();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  fileInput.value = '';
+}
+
+function buildCard(id) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.id = 'card_' + id;
+  card.innerHTML = `
+    <canvas></canvas>
+    <div class="card-foot">
+      <span>${state.items.find(i => i.id === id).name}</span>
+      <button class="dl-btn" data-id="${id}">保存</button>
+    </div>`;
+  card.querySelector('.dl-btn').addEventListener('click', () => downloadOne(id));
+  queueEl.appendChild(card);
+}
+
+function renderAll() { state.items.forEach(item => renderOne(item.id)); }
+
+function renderOne(id) {
+  const item = state.items.find(i => i.id === id);
+  if (!item) return;
+  const card = document.getElementById('card_' + id);
+  if (!card) return;
+  const canvas = card.querySelector('canvas');
+
+  const MAX_SIDE = 2000;
+  let { naturalWidth: w, naturalHeight: h } = item.img;
+  const scale = Math.min(1, MAX_SIDE / Math.max(w, h));
+  w = Math.round(w * scale);
+  h = Math.round(h * scale);
+  canvas.width = w;
+  canvas.height = h;
+
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(item.img, 0, 0, w, h);
+
+  if (state.mode === 'etsy') {
+    drawCornerLogo(ctx, w, h, opacityInput.value / 100);
+  } else {
+    drawTiledText(ctx, w, h);
+  }
+}
+
+function drawTiledText(ctx, w, h) {
+  const text = textInput.value.trim() || 'Zuuma';
+  const opacity = opacityInput.value / 100;
+  const scaleFactor = fontScaleInput.value / 100;
+  const fontSize = Math.max(16, Math.round(Math.min(w, h) * 0.075 * scaleFactor));
+
+  ctx.save();
+  ctx.font = `700 ${fontSize}px -apple-system, "Hiragino Sans", sans-serif`;
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = `rgba(255,255,255,${opacity})`;
+  ctx.strokeStyle = `rgba(0,0,0,${opacity * 0.8})`;
+  ctx.lineWidth = Math.max(1, fontSize / 18);
+
+  const diag = Math.ceil(Math.sqrt(w * w + h * h));
+  ctx.translate(w / 2, h / 2);
+  ctx.rotate(-30 * Math.PI / 180);
+  ctx.translate(-diag / 2, -diag / 2);
+
+  const stepX = fontSize * 9;
+  const stepY = fontSize * 5;
+  let row = 0;
+  for (let y = -stepY; y < diag + stepY; y += stepY) {
+    const offset = (row % 2) * (stepX / 2);
+    for (let x = -stepX; x < diag + stepX; x += stepX) {
+      ctx.strokeText(text, x + offset, y);
+      ctx.fillText(text, x + offset, y);
+    }
+    row++;
+  }
+  ctx.restore();
+}
+
+function drawCornerLogo(ctx, w, h, opacity) {
+  const r = Math.min(w, h) * 0.05;
+  const margin = r * 0.7;
+  const cx = w - r - margin;
+  const cy = h - r - margin;
+  const a = r * 0.2173, b = r * 0.7827;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  ctx.beginPath();
+  ctx.moveTo(a, -b);
+  ctx.lineTo(b, -a);
+  ctx.quadraticCurveTo(r, 0, b, a);
+  ctx.lineTo(a, b);
+  ctx.quadraticCurveTo(0, r, -a, b);
+  ctx.lineTo(-b, a);
+  ctx.quadraticCurveTo(-r, 0, -b, -a);
+  ctx.lineTo(-a, -b);
+  ctx.quadraticCurveTo(0, -r, a, -b);
+  ctx.closePath();
+  ctx.fillStyle = `rgba(200,168,107,${opacity})`;
+  ctx.fill();
+
+  const wN = r * 0.346, hN = r * 0.385, swN = Math.max(1.5, r * 0.173);
+  ctx.beginPath();
+  ctx.moveTo(-wN, hN);
+  ctx.lineTo(-wN, -hN);
+  ctx.lineTo(wN, hN);
+  ctx.lineTo(wN, -hN);
+  ctx.strokeStyle = `rgba(12,11,9,${opacity})`;
+  ctx.lineWidth = swN;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function downloadOne(id) {
+  const canvas = document.querySelector('#card_' + id + ' canvas');
+  const item = state.items.find(i => i.id === id);
+  const link = document.createElement('a');
+  const base = (item.name || 'photo').replace(/\.[^.]+$/, '');
+  link.download = base + '_watermarked.jpg';
+  link.href = canvas.toDataURL('image/jpeg', 0.92);
+  link.click();
+}
+
+document.getElementById('downloadAll').addEventListener('click', () => {
+  state.items.forEach((item, i) => setTimeout(() => downloadOne(item.id), i * 300));
+});
+
+document.getElementById('clearAll').addEventListener('click', () => {
+  state.items = [];
+  queueEl.innerHTML = '';
+  updateVisibility();
+});
+
+function updateVisibility() {
+  const has = state.items.length > 0;
+  queuePanel.style.display = has ? 'block' : 'none';
+  emptyMsg.style.display = has ? 'none' : 'block';
+}
+</script>
+</body>
+</html>
