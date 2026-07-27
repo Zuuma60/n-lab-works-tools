@@ -457,11 +457,34 @@ function drawCornerLogo(ctx, w, h, opacity) {
 function downloadOne(id) {
   const canvas = document.querySelector('#card_' + id + ' canvas');
   const item = state.items.find(i => i.id === id);
-  const link = document.createElement('a');
   const base = (item.name || 'photo').replace(/\.[^.]+$/, '');
-  link.download = base + '_watermarked.jpg';
-  link.href = canvas.toDataURL('image/jpeg', 0.92);
-  link.click();
+  const fileName = base + '_watermarked.jpg';
+
+  canvas.toBlob(async (blob) => {
+    if (!blob) return;
+
+    // Mobile (iPhone/Android): use the native share sheet so "画像を保存" is available
+    try {
+      const file = new File([blob], fileName, { type: 'image/jpeg' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file] });
+        return;
+      }
+    } catch (err) {
+      if (err && err.name === 'AbortError') return; // user cancelled the share sheet
+      // otherwise fall through to the methods below
+    }
+
+    // Desktop fallback: normal download link
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = fileName;
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }, 'image/jpeg', 0.92);
 }
 
 document.getElementById('downloadAll').addEventListener('click', () => {
